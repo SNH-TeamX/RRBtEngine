@@ -6,6 +6,7 @@ import dynamic_indicator as di
 
 from matplotlib import pyplot as plt
 
+# read file from csv file
 def read_file(tb_day_data):
     data = pd.read_csv(tb_day_data, header=None)
     data.columns = ["date", "time", "open", "high", 
@@ -13,6 +14,7 @@ def read_file(tb_day_data):
     print("read data finish.")
     return data
 
+# transform time into python datetime format
 def get_rowtime(row):
     time = datetime.datetime(int(row.date/10000), int(row.date/100%100), row.date%100,
                              int(row.time/10000), int(row.time/100%100), row.time%100)
@@ -36,10 +38,12 @@ class KLineBt:
         
         self.last_row = None
 
-        
+    
+    # load data to object
     def load_data(self, tb_day_data):
         self.k_line_data = read_file(tb_day_data)
         
+    # backtesting loop
     def bt(self):
         for index, row in self.k_line_data.iterrows():
             
@@ -51,23 +55,24 @@ class KLineBt:
             self.current_row = row
             self.on_kline(row)
             self.last_row = row
-            
-#            if index > 10000:
-#                break
         
-
+    # on_day change function, calculate daily return
     def _on_day_change(self, new_row, last_row):
         self.day_ret.append({
                 "time": self.current_time.date(),
                 "cash":self.cash + last_row.close * self.position
                 })
         self.on_day_change(new_row, last_row)
+        
+    # a interface to inherent class
     def on_day_change(self, new_row, last_row):
         pass
     
+    # a interface to inherent class
     def on_kline(self, k_line_data):
         pass
     
+    # send order 
     def limit_position(self, position):
         if self.position == position:
             return
@@ -107,7 +112,7 @@ class KLineBt:
                     "cash": self.cash}
                 )
                 
-
+# calculate the return after fee
 def fee_ret(tran_ret, day_ret, fee):
     tran_ret_fee = []
     day_ret_fee = []
@@ -145,7 +150,7 @@ def fee_ret(tran_ret, day_ret, fee):
                     
     return (tran_ret_fee.cash, day_ret_fee.cash)
         
-
+# a simple dual MA strategy
 class SimpleStrat(KLineBt):
     def __init__(self, file_address):
         KLineBt.__init__(self)
@@ -172,6 +177,7 @@ class SimpleStrat(KLineBt):
     def on_day_change(self, new_row, last_row):
         self.limit_position(0)
         
+# demo
 if __name__=="__main__":
     ss = SimpleStrat('D:/data/1min/processed/rb.csv')
     # ss = SimpleStrat('D:/data/10s/rb_10s.csv')
