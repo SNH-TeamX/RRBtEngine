@@ -26,7 +26,6 @@ class LookBackWindow:
         else:
             return self.last() - self.first()
 
-    
     def clear(self):
         self.buffer = []
         
@@ -43,59 +42,51 @@ class LookBackWindow:
         else:
             return 0
 
-
-class StupidReversion(KLineBt):
+class Turtle(KLineBt):
     def __init__(self, file_address):
         KLineBt.__init__(self)
         KLineBt.load_data(self, file_address)
         
-        self.test_buf = None
-        self.ma_slow = di.MA(600)
-        self.ma_fast = di.MA(120)
-        
-        self.lbw = LookBackWindow(120)
+        self.start = None
+        self.lbw = LookBackWindow(480)
+        self.vol = 100
         # self.
         
     def on_kline(self, k_data):
-        value_slow = self.ma_slow.update(k_data.close)
-        value_fast = self.ma_fast.update(k_data.close)
         self.lbw.push(k_data.close)
-        
-        if value_slow is None or value_fast is None:
-            return
-        
-        if self.lbw.trend() is None:
-            return
+        if self.start is None:
+            self.start = k_data.open
+            
+        stage = int((k_data.close - self.start) / self.vol * 5)
+        if stage > 10:
+            stage = 10
         
         if self.position == 0:
-            # print(self.lbw.trend())
-            if self.lbw.trend() == 1:
-                #assert False
-                if k_data.close < self.ma_fast.get_value():
-                    #assert False
-                    self.limit_position(1)
-                    
-            if self.lbw.trend() == -1:
-                if k_data.close > self.ma_fast.get_value():
-                    self.limit_position(-1)
-                    
-        elif self.position == 1:
-            if self.lbw.diff() < 0:
-                self.limit_position(0)
+            if stage > 0 and stage > self.position:
+                self.limit_position(stage)
                 
+            elif stage < 0 and stage < self.position:
+                self.limit_position(stage)
+        
+        elif self.position == 1:
+            if k_data.close < self.start:
+                self.limit_position(0)
+        
         elif self.position == -1:
-            if self.lbw.diff() > 0:
+            if k_data.close > self.start:
                 self.limit_position(0)
         
     def on_day_change(self, new_row, last_row):
         self.limit_position(0)
+        self.start = None
+        self.vol = self.lbw.std()
         
-
-
-ss = StupidReversion('D:/data/1min/processed/rb.csv')
+        
+    
+ss = Turtle('D:/data/1min/processed/rb.csv')
 # ss = SimpleStrat('D:/data/10s/rb_10s.csv')
 print(datetime.datetime.now())
 ss.bt()
 print(datetime.datetime.now())
-tran_ret, day_ret = fee_ret(ss.ret, ss.day_ret, 0)
+tran_ret, day_ret = fee_ret(ss.ret, ss.day_ret, 1.3)
 tran_ret.plot()

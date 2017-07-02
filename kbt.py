@@ -1,16 +1,24 @@
 import pandas as pd
 import numpy as np
 import datetime
+import sys
 
 import dynamic_indicator as di
 
 from matplotlib import pyplot as plt
 
 # read file from csv file
-def read_file(tb_day_data):
+def read_file(tb_day_data, start=None, end=None):
     data = pd.read_csv(tb_day_data, header=None)
     data.columns = ["date", "time", "open", "high", 
                     "low", "close", "vol", "holdings"]
+    
+    if start is not None:
+        data = data[data.date>=start]
+        
+    if end is not None:
+        data = data[data.date<=end]
+    
     print("read data finish.")
     return data
 
@@ -19,6 +27,7 @@ def get_rowtime(row):
     time = datetime.datetime(int(row.date/10000), int(row.date/100%100), row.date%100,
                              int(row.time/10000), int(row.time/100%100), row.time%100)
     return time
+
 
 
 class KLineBt:
@@ -37,16 +46,22 @@ class KLineBt:
         self.current_time = None
         
         self.last_row = None
+        
+        self.transactions = []
+        
+        self.date_list = {}
 
     
     # load data to object
-    def load_data(self, tb_day_data):
-        self.k_line_data = read_file(tb_day_data)
+    def load_data(self, tb_day_data, start=None, end=None):
+        self.k_line_data = read_file(tb_day_data, start, end)
         
     # backtesting loop
     def bt(self):
+        total_length = len(self.k_line_data)
         for index, row in self.k_line_data.iterrows():
             
+            self.date_list[row.date] = row.close
             self.current_time = get_rowtime(row)
             
             if self.last_row is not None and row.date != self.last_row.date:
@@ -55,6 +70,12 @@ class KLineBt:
             self.current_row = row
             self.on_kline(row)
             self.last_row = row
+            
+            index_revised = index-self.k_line_data.index[0]
+            if index_revised % 1000 == 0:
+                progress = int(index_revised/total_length*100)
+                print('\r[{0}] {1}%'.format('#'*int(progress/10), progress))
+
         
     # on_day change function, calculate daily return
     def _on_day_change(self, new_row, last_row):
@@ -78,11 +99,23 @@ class KLineBt:
             return
         
         if self.position * position > 0:
-            self.position = position
+            self.transactions.append({
+                    "time": self.current_time,
+                    "qty": position - self.position,
+                    "price": self.current_row.close,
+                    "current_qty": position
+                    })
             self.cash += -(position - self.position) * self.current_row.close
-        
+            self.position = position
+            return
         
         if self.position == 0:
+            self.transactions.append({
+                    "time": self.current_time,
+                    "qty": position - self.position,
+                    "price": self.current_row.close,
+                    "current_qty": position
+                    })
             self.position = position
             self.cash += -position * self.current_row.close
                 
@@ -92,12 +125,20 @@ class KLineBt:
                 self.limit_position(position)
                 
             elif position == 0:
+                self.transactions.append({
+                    "time": self.current_time,
+                    "qty": position - self.position,
+                    "price": self.current_row.close,
+                    "current_qty": position
+                    })
+                
                 self.cash += self.position * self.current_row.close
                 self.position = 0
                 self.ret.append({
                     "time": self.current_time,
                     "cash": self.cash}
                 )
+
                 
         elif self.position < 0:
             if position > 0:
@@ -105,12 +146,19 @@ class KLineBt:
                 self.limit_position(position)
                 
             elif position == 0:
+                self.transactions.append({
+                    "time": self.current_time,
+                    "qty": position - self.position,
+                    "price": self.current_row.close,
+                    "current_qty": position
+                    })
                 self.cash += self.position * self.current_row.close
                 self.position = 0
                 self.ret.append({
                     "time": self.current_time,
                     "cash": self.cash}
                 )
+
                 
 # calculate the return after fee
 def fee_ret(tran_ret, day_ret, fee):
