@@ -1,4 +1,5 @@
 from kbt import *
+from retreport import *
 
 class Follower(KLineBt):
     def __init__(self, file_address, start=None, end=None):
@@ -36,4 +37,7 @@ class Follower(KLineBt):
 ss = Follower('D:/data/1min/processed/rb.csv', 20160101, 20170101)
 ss.bt()
 tran_ret, day_ret = fee_ret(ss.ret, ss.day_ret, 1)
+
+ra = RetAnalyzer(ss.transactions, ss.date_list, ss.day_ret)
 tran_ret.plot()
+print(ra.stat())

@@ -203,4 +203,4 @@ class RetAnalyzer:
                 
                 }
     
-ra = RetAnalyzer(ss.transactions, ss.date_list, ss.day_ret)
+
